@@ -1,12 +1,19 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+
+	"time"
+
+	"github.com/julienschmidt/httprouter"
 
 	"tms.zinkworks.com/model"
 )
@@ -96,4 +103,137 @@ func (app *application) showTaskHandler(w http.ResponseWriter, r *http.Request) 
 		app.logger.Print(err)
 		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
 	}
+}
+
+func (app *application) createTaskHandler2(w http.ResponseWriter, r *http.Request) {
+
+	var createTask model.Task
+
+	err := json.NewDecoder(r.Body).Decode(&createTask)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	createTask.CreatedAt = time.Now()
+	createTask.UpdatedAt = time.Now()
+
+	taskDto := model.TaskDto{DB: app.db}
+
+	// Call the Insert method to insert the task into the database.
+	err = taskDto.Insert(&createTask)
+	if err != nil {
+		http.Error(w, "Error inserting task", http.StatusInternalServerError)
+		return
+	}
+
+	// Assuming you have the list of items for the task available in the createTask.Items slice.
+	// You can now insert these items into the task_item table.
+	for _, item := range createTask.Items {
+		err = taskDto.InsertTaskItem(createTask.ID, item)
+		if err != nil {
+			http.Error(w, "Error inserting task items", http.StatusInternalServerError)
+		}
+	}
+
+	// Encode the struct to JSON and send it as the HTTP response.
+	err = app.writeJSON(w, http.StatusCreated, createTask, nil)
+	if err != nil {
+		app.logger.Print(err)
+		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
+	}
+
+}
+
+func (app *application) getAllTasksHandler(w http.ResponseWriter, r *http.Request) {
+	taskDto := model.TaskDto{DB: app.db}
+
+	// Fetch all tasks from the database.
+	tasks, err := taskDto.GetAllTasks()
+	if err != nil {
+		http.Error(w, "Error fetching tasks", http.StatusInternalServerError)
+		return
+	}
+
+	// Encode the tasks slice to JSON and send the response.
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
+}
+
+func (app *application) deleteTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// Parse the task ID from the URL parameters.
+	taskID, err := strconv.Atoi(ps.ByName("id"))
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	taskDto := model.TaskDto{DB: app.db}
+
+	// Delete the task from the database.
+	err = taskDto.DeleteTask(taskID)
+	if err != nil {
+		http.Error(w, "Error deleting task", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (app *application) updateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// Parse the task ID from the URL parameters.
+	taskID, err := strconv.Atoi(ps.ByName("id"))
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	// Decode the request body into a new task object.
+	var updateTask model.Task
+	err = json.NewDecoder(r.Body).Decode(&updateTask)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Set the UpdatedAt field with the current time.
+	updateTask.UpdatedAt = time.Now()
+
+	taskDto := model.TaskDto{DB: app.db}
+
+	// Update the task in the database.
+	err = taskDto.UpdateTask(taskID, &updateTask)
+	if err != nil {
+		http.Error(w, "Error updating task", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(updateTask)
+}
+
+func (app *application) getTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// Parse the task ID from the URL parameters.
+	taskID, err := strconv.Atoi(ps.ByName("id"))
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	taskDto := model.TaskDto{DB: app.db}
+
+	// Fetch the task from the database by its ID.
+	task, err := taskDto.GetTask(taskID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.NotFound(w, r)
+		} else {
+			http.Error(w, "Error fetching task", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Encode the task to JSON and send the response.
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(task)
 }

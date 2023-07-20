@@ -84,3 +84,15 @@ See ``routes.go`` file
 go run .\tms\api
 ~~~
 
+## Endpoints
+
+### Fetching Task By Id
+~~~
+curl localhost:4000/tasks/2
+~~~
+
+### Get All Tasks
+~~~
+curl -X POST localhost:4000/tasks
+~~~
+
