@@ -181,10 +181,19 @@ func (app *application) deleteTaskHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (app *application) updateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
+	taskDto := model.TaskDto{DB: app.db}
+
 	// Parse the task ID from the URL parameters.
 	taskID, err := strconv.Atoi(ps.ByName("id"))
 	if err != nil {
 		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	existingTask, err := taskDto.GetTask(taskID)
+	if err != nil {
+		http.Error(w, "Task not found", http.StatusNotFound)
 		return
 	}
 
@@ -196,20 +205,25 @@ func (app *application) updateTaskHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Set the UpdatedAt field with the current time.
-	updateTask.UpdatedAt = time.Now()
+	existingTask.Title = updateTask.Title
+	existingTask.Description = updateTask.Description
+	existingTask.Completed = updateTask.Completed
+	existingTask.UpdatedAt = time.Now()
 
-	taskDto := model.TaskDto{DB: app.db}
+	existingTask.Items = updateTask.Items
 
 	// Update the task in the database.
-	err = taskDto.UpdateTask(taskID, &updateTask)
+	err = taskDto.UpdateTask(taskID, existingTask)
 	if err != nil {
 		http.Error(w, "Error updating task", http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(updateTask)
+	err = app.writeJSON(w, http.StatusOK, existingTask, nil)
+	if err != nil {
+		app.logger.Print(err)
+		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
+	}
 }
 
 func (app *application) getTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

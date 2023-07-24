@@ -42,6 +42,24 @@ At this point you will see below directory structure along will few additional f
 
 See ``main.go`` file
 
+### Setting a PostgreSQL Server
+
+Install PostgreSQL Server from here:
+https://sbp.enterprisedb.com/getfile.jsp?fileid=1258629
+
+Set the password for ``postgres`` user and change this accordingly.
+~~~go
+flag.StringVar(&cfg.db.dsn, "db-dsn", "postgres://postgres:ambrish@localhost/tms?sslmode=disable", "PostgreSQL Connection")
+~~~
+
+So the format is:
+postgres://username:password@localhost/databasename?sslmode=disable
+
+After installing PostgreSQl, run SQL commands from these files:
+
+1. create_table.sql
+2. insert_table.sql
+
 ### Integrating ``httprouter`` package
 
 When developing a Go API with endpoints, you may encounter limitations in the standard ``http.ServeMux`` router. This default router lacks features such as routing requests to different handlers based on request methods (e.g., GET, POST) and handling clean URLs with interpolated parameters.
@@ -74,10 +92,6 @@ require github.com/julienschmidt/httprouter v1.3.0
 
 See ``task.go`` file
 
-### Defining the Routes
-
-See ``routes.go`` file
-
 ## Running the Project
 
 ~~~go
@@ -86,13 +100,15 @@ go run .\tms\api
 
 ## Endpoints
 
-### Fetching Task By Id
-~~~
-curl localhost:4000/tasks/2
+See ``routes.go``
+
+### Updating ``go.sum`` file
+
+To update the ``go.sum`` file after removing dependencies, you can use below command:
+
+~~~go
+go mod tidy
 ~~~
 
-### Get All Tasks
-~~~
-curl -X POST localhost:4000/tasks
-~~~
+This command will remove any entries from the ``go.sum`` file that are no longer needed based on your updated ``go.mod`` file.
 
